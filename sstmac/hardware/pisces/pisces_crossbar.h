@@ -83,6 +83,9 @@ class PiscesNtoMQueue :
   }
 
  protected:
+
+  int swid_;
+
   PiscesBandwidthArbitrator* arb_;
 
   std::vector<Input> inputs_;

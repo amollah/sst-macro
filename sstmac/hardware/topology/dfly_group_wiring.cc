@@ -383,7 +383,7 @@ class RandomGroupWiring : public InterGroupWiring
     std::vector< std::vector<int> > groups;
     //remember to check the seed for this one
     std::random_device rd;
-    std::mt19937 rngu(rd());
+    std::mt19937 rngu(1);
 
     int j = 0;
     for (int i = 0; i < a_ * h_; ++i,++j) {

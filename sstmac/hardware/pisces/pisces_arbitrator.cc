@@ -102,6 +102,7 @@ validate_bw(double test_bw)
 PiscesBandwidthArbitrator::
 PiscesBandwidthArbitrator(double bw)
 {
+  validate_bw(bw);
   byteDelay_ = TimeDelta(1.0/bw);
 }
 
@@ -153,11 +154,11 @@ PiscesNullArbitrator::arbitrate(IncomingPacket &st)
   st.pkt->setByteDelay(byteDelay_);
   TimeDelta actual_delay = st.pkt->numBytes() * byteDelay;
   TimeDelta min_delay = st.pkt->numBytes() * byteDelay_;
-#if SSTMAC_SANITY_CHECK
+//#if SSTMAC_SANITY_CHECK
   if (actual_delay < min_delay){
     spkt_abort_printf("null arbitrator computed bad delay");
   }
-#endif
+//#endif
   st.head_leaves = st.now;
   st.tail_leaves = st.now + actual_delay;
   st.pkt->setByteDelay(byteDelay);
@@ -174,6 +175,8 @@ PiscesCutThroughArbitrator(double bw)
   cycleLength_ = byteDelay_;
   head_ = Epoch::allocateAtBeginning();
   head_->numCycles = std::numeric_limits<uint32_t>::max();
+  //Atiq
+  //head_->numCycles = std::numeric_limits<size_t>::max();
 }
 
 
@@ -227,21 +230,37 @@ PiscesCutThroughArbitrator::clearOut(Timestamp now)
       }
     }
   }
+
 }
 
 PiscesCutThroughArbitrator::Epoch*
 PiscesCutThroughArbitrator::advance(Epoch* epoch, Epoch* prev)
 {
-  Epoch* next = epoch->next;
-  if (prev) prev->next = epoch->next;
-  else head_ = next;
-  delete epoch;
-  return next;
+  if(epoch->next){
+    Epoch* next = epoch->next;
+    if (prev) prev->next = epoch->next;
+    else head_ = next;
+    delete epoch;
+    return next;
+  }else{
+    epoch->numCycles = std::numeric_limits<uint32_t>::max();   
+    //epoch->start = now;
+    return epoch;  
+  }
+
+
+//  Epoch* next = epoch->next;
+//  if (prev) prev->next = epoch->next;
+//  else head_ = next;
+//  delete epoch;
+//  return next;
+
 }
 
 void
 PiscesCutThroughArbitrator::arbitrate(IncomingPacket &st)
 {
+  PiscesPacket* payload = st.pkt;
   pflow_arb_debug_printf_l0("Cut-through: arbitrator %p starting packet %p:%llu of size %u with byte_delay=%9.5e epoch_delay=%9.5e start=%9.5e: %s",
                           this, st.pkt, st.pkt->flowId(), st.pkt->numBytes(), st.pkt->byteDelay().sec(),
                           byteDelay_.sec(), st.now.sec(),
@@ -258,21 +277,32 @@ PiscesCutThroughArbitrator::arbitrate(IncomingPacket &st)
   std::cout << "------" << std::endl;
 #endif
 
+    if (!head_){
+      spkt_abort_printf("1. BEFORE CLEAROUT! ran out of epochs on arbitrator %p: this should not be possible", this);
+    }
   clearOut(st.now);
+
 
   Timestamp fullyBufferedTime = st.now + st.pkt->byteDelay() * st.pkt->numBytes();
   Epoch* epoch = head_;
+
+
+
   Epoch* prev = nullptr;
   uint32_t bytesSent = 0;
   uint32_t bytesLeft = st.pkt->numBytes();
   //first idle epoch
   st.head_leaves = epoch->start;
+
+
+  int count=0;
   while (bytesLeft > 2){ //we often end up with 1,2 byte stragglers - ignore them for efficiency
-#if SSTMAC_SANITY_CHECK
+    count++;
+//#if SSTMAC_SANITY_CHECK
     if (!epoch){
       spkt_abort_printf("ran out of epochs on arbitrator %p: this should not be possible", this);
     }
-#endif
+//#endif
     TimeDelta epochLength = epoch->numCycles * cycleLength_;
     Timestamp epochEnd = epoch->start + epochLength;
     if (st.pkt->byteDelay() <= cycleLength_){
@@ -285,7 +315,9 @@ PiscesCutThroughArbitrator::arbitrate(IncomingPacket &st)
         epoch = advance(epoch, prev);
         st.tail_leaves = epochEnd;
       } else {
+
         //epoch has to split into busy and idle halves
+
         cut_through_arb_debug_noargs("truncating and finishing");
         epoch->start += bytesLeft * cycleLength_;
         epoch->numCycles -= bytesLeft;
@@ -295,6 +327,7 @@ PiscesCutThroughArbitrator::arbitrate(IncomingPacket &st)
       }
     } else {
       //we do not have all the bytes here yet
+
       if (fullyBufferedTime >= epochEnd){
         uint32_t bytesArrived = (epochEnd - st.now) / st.pkt->byteDelay();
         uint32_t bytesBuffered = std::min(bytesLeft, bytesArrived - bytesSent);
@@ -333,6 +366,7 @@ PiscesCutThroughArbitrator::arbitrate(IncomingPacket &st)
       } else {
         //buffering finishes in the middle of the epoch
         //split the epochs on buffering finishing and repeat
+
         Epoch* next = new Epoch;
         TimeDelta deltaT = fullyBufferedTime - epoch->start;
         uint32_t preCycles = deltaT  / cycleLength_;
@@ -355,10 +389,11 @@ PiscesCutThroughArbitrator::arbitrate(IncomingPacket &st)
     }
   }
 
+
   TimeDelta newByteDelay = (st.tail_leaves - st.head_leaves) / st.pkt->numBytes();
   st.pkt->setByteDelay(newByteDelay);
 
-#if SSTMAC_SANITY_CHECK
+//#if SSTMAC_SANITY_CHECK
   Epoch* end_ep = head_;
   Timestamp end_last;
   while(end_ep){
@@ -376,17 +411,17 @@ PiscesCutThroughArbitrator::arbitrate(IncomingPacket &st)
     end_last = end_ep->start;
     end_ep = end_ep->next;
   }
-#endif
+//#endif
 
   pflow_arb_debug_printf_l0("Cut-through: arbitrator %p finished packet %p:%llu of size %u with byte_delay=%9.5e epoch_delay=%9.5e head=%9.5e tail=%9.5e",
                           this, st.pkt, st.pkt->flowId(), st.pkt->numBytes(), newByteDelay.sec(), byteDelay_.sec(),
                           st.head_leaves.sec(), st.tail_leaves.sec());
 
-#if SSTMAC_SANITY_CHECK
+//#if SSTMAC_SANITY_CHECK
   if (st.head_leaves > st.tail_leaves){
     spkt_abort_printf("head leaves after tail!");
   }
-#endif
+//#endif
 
 }
 

@@ -48,6 +48,10 @@ Questions? Contact sst-macro-help@sandia.gov
 #include <sstmac/hardware/topology/dragonfly.h>
 #include <sstmac/hardware/topology/dfly_group_wiring.h>
 
+#define MAX_ROUTER 2200
+#define MAX_PORT 64
+
+typedef int (*mytype)[MAX_ROUTER][MAX_PORT];
 namespace sstmac {
 namespace hw {
 
@@ -67,7 +71,49 @@ class DragonflyPlus : public Dragonfly
     "implements a Dragonfly+ with fat-tree groups")
 
   DragonflyPlus(SST::Params& params);
+  /* ......................... */
+   int all_link_state1[MAX_ROUTER][MAX_PORT]={{0}};
+   double  all_link_state_timestamp[MAX_ROUTER][MAX_PORT]={{0.0}};
 
+   int x13=0;
+   int y13=0;
+    mytype global_array()
+    {
+       mytype p = &all_link_state1;
+       return p;
+    }
+
+    double (*global_timestamp_array())[MAX_ROUTER][MAX_PORT]
+    {
+       double (*p)[MAX_ROUTER][MAX_PORT];
+       p = &all_link_state_timestamp;
+       return p;
+    }
+
+    int* total_minimal_path()
+    {
+         int *x1=&x13;
+         return x1;
+    }
+    int* total_non_minimal_path()
+    {
+         int *y1=&y13;
+         return y1;
+    }
+   
+  /*
+   void initialize_array(){
+   int ii;
+   for (ii=0; ii<2200; ii++){
+         all_link_state[ii] = (int *) malloc(64 * sizeof(int));
+     }
+   for (ii=0; ii<2200; ii++){
+       for(int j=0;j<64;j++)
+         all_link_state[ii][j]=0;     }
+
+   }*/
+   
+  /*..........................*/
   std::string toString() const override {
     return "dragonfly+";
   }
@@ -78,7 +124,7 @@ class DragonflyPlus : public Dragonfly
 
   void connectedOutports(SwitchId src, std::vector<Connection>& conns) const override;
 
-  virtual ~DragonflyPlus() {}
+  virtual ~DragonflyPlus() {top_debug("hello");}
 
   VTKSwitchGeometry getVtkGeometry(SwitchId sid) const override;
 

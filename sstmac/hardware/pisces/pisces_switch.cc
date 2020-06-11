@@ -188,7 +188,10 @@ PiscesSwitch::InputPort::handle(Event *ev)
   parent->router()->route(payload);
   payload->resetStages(payload->edgeOutport(), 0);
   payload->setInport(this->port);
+  //std::printf("handling payload at router %d\n", parent->router()->addr());
   parent->xbar()->handlePayload(payload);
+  //std::printf("Successfully handled  payload at router %d\n", parent->router()->addr());
+
   recv_bytes_->addData(payload->byteLength());
 }
 

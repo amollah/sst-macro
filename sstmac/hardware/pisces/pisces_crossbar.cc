@@ -64,6 +64,8 @@ PiscesCrossbar::PiscesCrossbar(
   PiscesNtoMQueue(selfname, id, arb, bw, parent, num_in_ports, num_out_ports,
                   num_vc, update_vc)
 {
+  PiscesSwitch *p = (PiscesSwitch *)parent;
+  swid_ = p->router()->addr();
 }
 
 PiscesDemuxer::PiscesDemuxer(
@@ -143,7 +145,7 @@ PiscesNtoMQueue::outputName(PiscesPacket* pkt)
 void
 PiscesNtoMQueue::sendPayload(PiscesPacket* pkt)
 {
-#if SSTMAC_SANITY_CHECK
+//if SSTMAC_SANITY_CHECK
   int port = pkt->nextLocalOutport();
   if (port >= outputs_.size() || outputs_[port].link == nullptr){
     spkt_abort_printf("got bad outport %d on stage %d", port, int(pkt->stage()));
@@ -152,7 +154,8 @@ PiscesNtoMQueue::sendPayload(PiscesPacket* pkt)
   if (port >= inputs_.size() || inputs_[port].link == nullptr){
     spkt_abort_printf("got bad inport %d on stage %d", port, int(pkt->stage()));
   }
-#endif
+//endif
+  //if(swid_==131) std::printf("%d->Xbar sanity passed! sending to local_inport %d, local_outport %d \n", swid_, pkt->nextLocalInport(), pkt->nextLocalOutport());
   send(arb_, pkt, inputs_[pkt->nextLocalInport()], outputs_[pkt->nextLocalOutport()]);
 }
 
